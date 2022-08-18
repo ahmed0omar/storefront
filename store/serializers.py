@@ -1,8 +1,61 @@
 from dataclasses import fields
 from decimal import Decimal
-from .models import Collection,Product, Review
+from itertools import product
+from .models import CartItem, Collection,Product, Review,Cart
 from unicodedata import decimal
 from rest_framework import serializers
+
+class UpdatetemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=CartItem
+        fields=['quantity']
+class SimpleProductSerilizer(serializers.ModelSerializer):
+    class Meta:
+        model=Product
+        fields=['id','title','unit_price']
+class AddtemSerializer(serializers.ModelSerializer):
+    product_id=serializers.IntegerField()
+    
+    def validate_product_id(self,value):
+        if not Product.objects.filter(id=value).exists():# to use exists() method we must use filter() method
+            raise serializers.ValidationError("we didn't have a product with id {} ".format(value))
+        return value
+    def save(self,  **kwargs):
+        cart_id=self.context['cart_id']
+        try:
+            item=CartItem.objects.get(product_id=self.validated_data['product_id'])
+            item.quantity+=self.validated_data['quantity']
+            item.save()
+            self.instance=item
+        except CartItem.DoesNotExist:
+            self.instance= CartItem.objects.create(cart_id=cart_id,**self.validated_data)
+        finally:
+            return self.instance
+    class Meta:
+        model=CartItem
+        fields=['product_id','quantity']
+class CartItemSerializer(serializers.ModelSerializer):
+    product=SimpleProductSerilizer()
+    qty_price=serializers.SerializerMethodField(read_only=True,method_name='quantityPrice')
+    def quantityPrice(self,cart_item:CartItem):
+        return cart_item.quantity*cart_item.product.unit_price
+    class Meta:
+        model=CartItem
+        fields=['id','product','quantity','qty_price']
+class CartSerializer(serializers.ModelSerializer):
+    id=serializers.UUIDField(read_only=True)
+    items=CartItemSerializer(many=True,read_only=True)
+    total_price=serializers.SerializerMethodField(method_name='totalPrice')
+    def totalPrice(self,cart:Cart):
+        #query=CartItem.objects.filter(cart_id=cart.id)
+        # total_price=0
+        # for item in cart.items.all():
+        #     total_price+=
+        # return total_price
+        return sum([item.product.unit_price*item.quantity for item in cart.items.all()])
+    class Meta:
+        model=Cart
+        fields=['id','items','total_price']#'__all__'
 class CollectionSerializer(serializers.ModelSerializer):
     class Meta:
         model=Collection
@@ -17,6 +70,7 @@ class ReviwsSerializer(serializers.ModelSerializer):
         return Review.objects.create(product_id=product_id,**validated_data)
     
 class ProductSerializer(serializers.ModelSerializer):
+    collection=CollectionSerializer()
     class Meta:
         model=Product
         fields=['id','title','unit_price','inventory','tax','collection']
