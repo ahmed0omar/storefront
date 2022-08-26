@@ -1,10 +1,13 @@
 from dataclasses import fields
 from decimal import Decimal
 from itertools import product
-from .models import CartItem, Collection,Product, Review,Cart
+from .models import CartItem, Collection, Customer, Order,Product, Review,Cart
 from unicodedata import decimal
 from rest_framework import serializers
-
+class  OrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Order
+        fields='__all__'
 class UpdatetemSerializer(serializers.ModelSerializer):
     class Meta:
         model=CartItem
@@ -103,3 +106,15 @@ class ProductSerializer(serializers.ModelSerializer):
     #     instance.unite_price=validated_data.get('unit_price')
     #     instance.save()
     #     return instance
+class CustomerSerializer(serializers.ModelSerializer):
+    user_id=serializers.IntegerField(read_only=True)
+    class Meta:
+        model=Customer
+        fields=['id','phone','birth_date','user_id']
+    def create(self, validated_data):
+        user_id=self.context['request'].user.id
+      
+        return Customer.objects.create(user_id=user_id,**validated_data)
+
+    
+    
